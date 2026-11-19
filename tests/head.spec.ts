@@ -202,6 +202,20 @@ test.describe('Head component', () => {
     )
   })
 
+  test('renders numeric React title children, including zero', async ({ page }) => {
+    test.skip(process.env.PACKAGE !== 'react', 'React numeric title fixture')
+
+    await page.goto('/head/with-title')
+    await expect(page).toHaveTitle('Title from Children')
+
+    const button = page.getByRole('button', { name: 'Set numeric title' })
+    await button.click()
+    await expect(page).toHaveTitle('0')
+
+    await button.click()
+    await expect(page).toHaveTitle('42')
+  })
+
   test('preserves head-key for proper updates', async ({ page }) => {
     await page.goto('/head/reactive')
     await page.waitForSelector('title[data-inertia]', { state: 'attached' })

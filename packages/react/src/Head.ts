@@ -66,8 +66,8 @@ const Head: InertiaHead = function ({ children, title }) {
   function renderTagChildren(node: ReactElement<any>): string {
     const { children } = node.props
 
-    if (typeof children === 'string') {
-      return children
+    if (typeof children === 'string' || typeof children === 'number') {
+      return String(children)
     }
 
     if (Array.isArray(children)) {
@@ -78,11 +78,7 @@ const Head: InertiaHead = function ({ children, title }) {
   }
 
   function renderTag(node: ReactElement<any>): string {
-    let html = renderTagStart(node)
-
-    if (node.props.children) {
-      html += renderTagChildren(node)
-    }
+    let html = renderTagStart(node) + renderTagChildren(node)
 
     if (node.props.dangerouslySetInnerHTML) {
       html += node.props.dangerouslySetInnerHTML.__html
