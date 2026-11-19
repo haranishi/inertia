@@ -75,6 +75,42 @@ test.describe('url.ts', () => {
         expect(data).toEqual({})
       })
 
+      test('keeps bracket arrays of objects when merging unrelated GET data', () => {
+        const [url] = mergeDataIntoQueryString('get', '/products', { filters: [{ id: 1 }, { id: 2 }] })
+
+        expect(url).toBe('/products?filters[][id]=1&filters[][id]=2')
+
+        const [href, data] = mergeDataIntoQueryString('get', url, { sort: 'name' })
+
+        expect(href).toBe('/products?filters[][id]=1&filters[][id]=2&sort=name')
+        expect(data).toEqual({})
+      })
+
+      test('preserves existing nested bracket pairs with indexed siblings', () => {
+        const url =
+          '/search?options[active]=yes&options[filters]%5B%5D[id]=1&options[filters][6][id]=2&options[filters][][name]=sample&tags[2]=vue&tags[8]=react'
+        const [href] = mergeDataIntoQueryString('get', `${url}&query=green+apple`, { sort: ['name'] })
+
+        expect(href).toBe(`${url}&query=green%20apple&sort[0]=name`)
+      })
+
+      test('omits discarded query keys from preserved bracket groups', () => {
+        const [href] = mergeDataIntoQueryString('get', '/search?filters[][id]=1&filters[__proto__]=discarded', {
+          sort: 'name',
+        })
+
+        expect(href).toBe('/search?filters[][id]=1&sort=name')
+      })
+
+      test('replaces or removes a bracket array of objects when its root key is supplied', () => {
+        const url = '/search?filters[][id]=1&filters[][id]=2&filter=keep'
+        const [replaced] = mergeDataIntoQueryString('get', url, { filters: ['active'] })
+        const [removed] = mergeDataIntoQueryString('get', url, { filters: undefined })
+
+        expect(replaced).toBe('/search?filters[]=active&filter=keep')
+        expect(removed).toBe('/search?filter=keep')
+      })
+
       test('merges data into URL with existing brackets notation arrays', () => {
         const originalHref = '/search?frameworks[]=react&frameworks[]=vue'
         const additionalData = { q: 'bar' }

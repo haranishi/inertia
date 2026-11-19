@@ -1,5 +1,9 @@
 import type { QueryStringArrayFormatOption } from './types'
 
+class UnindexedQueryGroup {
+  constructor(readonly pairs: string[]) {}
+}
+
 /**
  * Returns true if the given URL query string contains indexed array parameters.
  */
@@ -16,6 +20,7 @@ export function parse(query: string): Record<string, unknown> {
   }
 
   const result: Record<string, unknown> = {}
+  const originalPairs = new Map<string, string[]>()
 
   query
     .replace(/^\?/, '')
@@ -23,8 +28,29 @@ export function parse(query: string): Record<string, unknown> {
     .filter(Boolean)
     .forEach((segment) => {
       const [rawKey, rawValue] = splitPair(segment)
+      const keys = parseKey(decode(rawKey))
+      const value = decode(rawValue)
 
-      set(result, decode(rawKey), decode(rawValue))
+      if (keys.includes('__proto__')) {
+        return
+      }
+
+      const root = keys[0]
+      const pairs = originalPairs.get(root) ?? []
+      pairs.push(segment)
+      originalPairs.set(root, pairs)
+
+      if (result[root] instanceof UnindexedQueryGroup) {
+        return
+      }
+
+      // An empty bracket before another key does not identify which fields share an array entry.
+      if (keys.slice(1, -1).includes('')) {
+        result[root] = new UnindexedQueryGroup(pairs)
+        return
+      }
+
+      set(result, keys, value)
     })
 
   return result
@@ -61,14 +87,7 @@ function decode(value: string): string {
 /**
  * Set an item on an object using bracket notation.
  */
-function set(target: Record<string, unknown>, key: string, value: string): void {
-  // "user[profile][name]" -> ["user", "profile", "name"]
-  const keys = parseKey(key)
-
-  if (keys.some((k) => k === '__proto__')) {
-    return
-  }
-
+function set(target: Record<string, unknown>, keys: string[], value: string): void {
   let current = target
 
   while (keys.length > 1) {
@@ -134,6 +153,11 @@ function build(value: unknown, prefix: string, pairs: string[], arrayFormat: Que
   // { cleared: null } -> "cleared=" (empty value, key preserved)
   if (value === null) {
     pairs.push(`${prefix}=`)
+    return
+  }
+
+  if (value instanceof UnindexedQueryGroup) {
+    pairs.push(value.pairs.join('&'))
     return
   }
 
